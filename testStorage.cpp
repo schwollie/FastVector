@@ -390,6 +390,19 @@ TEST(StorageTest, InPlaceSize) {
     auto& b = a[0];
 }
 
+TEST(StorageTest, TestConstIt) {
+    class BigMyType {
+        int mValue;
+        char mBigArray[1000];
+    };
+
+    const FastStorage<std::pair<BigMyType, int>, 100> a{std::make_pair(BigMyType(), 1)};
+    for (const auto& i : a) {
+        EXPECT_EQ(i.second, 1);
+    }
+
+}
+
 TEST(StorageTest, TestSpeed) {
 
     int num_runs = 1000000;

@@ -200,21 +200,22 @@ public:
     }
 
     /// @brief random access iterator for the FastStorage class
+    template <typename PointerType, typename StorageRef>
     class iterator {
         size_t mIndex = 0;
-        FastStorage *mStorage;
+        StorageRef *mStorage;
     public:
         using iterator_category = std::random_access_iterator_tag;
         using difference_type = std::ptrdiff_t;
-        using value_type = T;
-        using pointer = T *;  // or also value_type*
-        using reference = T &;  // or also value_type&
+        using value_type = PointerType;
+        using pointer = PointerType *;  // or also value_type*
+        using reference = PointerType &;  // or also value_type&
 
         iterator() = delete;
 
-        explicit iterator(FastStorage &storage) : mStorage(storage) {}
+        explicit iterator(StorageRef &storage) : mStorage(storage) {}
 
-        explicit iterator(size_t index, FastStorage *storage) : mIndex(index), mStorage(storage) {}
+        explicit iterator(size_t index, StorageRef *storage) : mIndex(index), mStorage(storage) {}
 
         iterator erase() {
             if (mStorage->erase(mIndex)) {
@@ -239,11 +240,11 @@ public:
         ~iterator() = default;
 
         //Pointer like operators
-        reference operator*() const { return (*mStorage)[mIndex]; }
+        reference operator*() const noexcept { return (*mStorage)[mIndex]; }
 
-        const value_type *operator->() const { return mStorage[mIndex]; }
+        const value_type *operator->() const noexcept { return mStorage[mIndex]; }
 
-        reference operator[](difference_type off) const { return &(mStorage->operator[](mIndex)); }
+        reference operator[](difference_type off) const noexcept { return &(mStorage->operator[](mIndex)); }
 
         //Increment / Decrement
         iterator &operator++() {
@@ -303,27 +304,30 @@ public:
         bool operator>=(const iterator &r) const { return mIndex >= r.mIndex; }
     };
 
+    typedef iterator<const T, const FastStorage<T, N>> const_iterator_type;
+    typedef iterator<T, FastStorage<T, N>> iterator_type;
+
     ///@return an iterator to the beginning of the container
-    iterator begin() noexcept {
-        return iterator(0, this);
+    iterator_type begin() noexcept {
+        return iterator_type(0, this);
     }
 
     ///@return an iterator to the end of the container
-    iterator end() noexcept {
-        return iterator(mSize, this);
+    iterator_type end() noexcept {
+        return iterator_type(mSize, this);
     }
 
     ///@return an iterator to the beginning of the container
-    iterator begin() const noexcept {
-        return iterator(0, this);
+    const_iterator_type begin() const noexcept {
+        return const_iterator_type(0, this);
     }
 
     ///@return an iterator to the end of the container
-    iterator end() const noexcept {
-        return iterator(mSize, this);
+    const_iterator_type end() const noexcept {
+        return const_iterator_type(mSize, this);
     }
 
-    iterator erase(iterator it) noexcept {
+    iterator_type erase(iterator_type it) noexcept {
         return it.erase();
     }
 };
