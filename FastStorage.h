@@ -287,6 +287,16 @@ public:
         return iterator(mSize, this);
     }
 
+    ///@return an iterator to the beginning of the container
+    iterator begin() const noexcept {
+        return iterator(0, this);
+    }
+
+    ///@return an iterator to the end of the container
+    iterator end() const noexcept {
+        return iterator(mSize, this);
+    }
+
     iterator erase(iterator it) noexcept {
         return it.erase();
     }
