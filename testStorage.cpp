@@ -143,6 +143,56 @@ TEST(StorageTest, Erase) {
     EXPECT_FALSE(a.erase(0));
 }
 
+TEST(StorageTest, TestDestructorCalls) {
+
+    class TestDestructorCalls {
+        std::vector<int>* mNumDestructorCalls;
+        int mIdentifier = 0;
+    public:
+        TestDestructorCalls(std::vector<int>* num_destructor_calls, int identifier) : mNumDestructorCalls(num_destructor_calls), mIdentifier(identifier) {}
+        ~TestDestructorCalls() {
+            mNumDestructorCalls->push_back(mIdentifier);
+        }
+    };
+
+    {
+        std::vector<int> num_destructor_calls;
+
+        FastStorage<TestDestructorCalls, 2> a;
+        a.emplace_back(&num_destructor_calls, 1);
+        a.emplace_back(&num_destructor_calls, 2);
+        a.emplace_back(&num_destructor_calls, 3);
+        a.pop_back();
+        a.pop_back();
+        a.pop_back();
+
+        EXPECT_EQ(num_destructor_calls.size(), 3);
+        EXPECT_EQ(num_destructor_calls[0], 3);
+        EXPECT_EQ(num_destructor_calls[1], 2);
+        EXPECT_EQ(num_destructor_calls[2], 1);
+    }
+
+    {
+        std::vector<int> num_destructor_calls;
+
+        FastStorage<TestDestructorCalls, 2> a;
+        a.emplace_back(&num_destructor_calls, 1);
+        a.emplace_back(&num_destructor_calls, 2);
+        a.emplace_back(&num_destructor_calls, 3);
+        a.erase(0);
+        a.erase(0);
+        a.erase(0);
+
+        EXPECT_EQ(num_destructor_calls[0], 1);
+        // this destructor call is done after moving from vector to in place memory
+        EXPECT_EQ(num_destructor_calls[1], 3);
+        EXPECT_EQ(num_destructor_calls[2], 2);
+        EXPECT_EQ(num_destructor_calls[3], 3);
+        EXPECT_EQ(num_destructor_calls.size(), 4);
+    }
+
+}
+
 TEST(StorageTest, TestIterator) {
     // test on some library algorithms
     {
@@ -188,6 +238,32 @@ TEST(StorageTest, TestIterator) {
         EXPECT_EQ(a[2], 3);
         EXPECT_EQ(a[3], 4);
     }
+
+    // const it
+    {
+        FastStorage<int, 2> a{1,2,3,4};
+
+        for (const auto& i: a) {
+            EXPECT_TRUE(std::find(a.begin(), a.end(),i) != a.end());
+        }
+    }
+
+    // const it
+    {
+        class MyInt {
+            int mValue;
+        public:
+            MyInt(int value) : mValue(value) {}
+            bool operator==(const MyInt& other) const {
+                return mValue == other.mValue;
+            }
+        };
+        FastStorage<MyInt, 2> a{1,2,3,4};
+
+        for (const auto& i: a) {
+            EXPECT_TRUE(std::find(a.begin(), a.end(), i) != a.end());
+        }
+    }
 }
 
 TEST(StorageTest, TestAt) {
@@ -205,6 +281,17 @@ TEST(StorageTest, TestAt) {
         EXPECT_THROW(a.at(-1100), std::out_of_range);
         EXPECT_THROW(a.at(6), std::out_of_range);
     }
+}
+
+TEST(StorageTest, NoDefaultConstructor) {
+    class NoDefaultConstructor {
+        int a = 0;
+    public:
+        NoDefaultConstructor() = delete;
+        NoDefaultConstructor(int a) : a(a) {}
+    };
+
+    FastStorage<NoDefaultConstructor, 2> a{2, 4, 1, 3, 4};
 }
 
 TEST(StorageTest, TestSpeed) {

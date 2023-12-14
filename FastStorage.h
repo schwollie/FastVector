@@ -5,29 +5,43 @@
 #include <list>
 #include <stdexcept>
 #include <iterator>
+#include <cstring>
 
 ///@brief FastStorage is a container that stores the first N elements in place and the rest in a linked list
 template <class T, size_t N = 5>
 class FastStorage {
-    std::array<T, N> mInPlace;
+    alignas(T) char mInPlace[sizeof(T)*N];
     std::unique_ptr<std::vector<T>> mOutOfPlace = nullptr; ///< out of place memory stored as linked list
 
     size_t mSize = 0;
+
+    T& getInPlace(size_t index) noexcept {
+        return reinterpret_cast<T*>(mInPlace)[index];
+    }
+
+    const T& getInPlace(size_t index) const noexcept {
+        return reinterpret_cast<const T *>(mInPlace)[index];
+    }
+
+    void setInPlace(size_t index, T&& value) noexcept {
+        reinterpret_cast<T*>(mInPlace)[index] = std::move(value);
+    }
+
 public:
     FastStorage() = default;
     FastStorage(const FastStorage& other) = delete;
     FastStorage& operator=(const FastStorage& other) = delete;
 
     FastStorage(std::initializer_list<T> list) {
-        for (auto& i: list) {
-            push_back(i);
+        for (auto&& i: list) {
+            push_back(std::move(i));
         }
     }
 
     ///@brief adds an element to the end of the storage
-    void push_back(const T& value) noexcept {
+    void push_back(const T&& value) noexcept {
         if (mSize < N) {
-            mInPlace[mSize] = value;
+            getInPlace(mSize) = std::move(value);
         } else {
             if (!mOutOfPlace) {
                 mOutOfPlace = std::make_unique<std::vector<T>>();
@@ -41,7 +55,8 @@ public:
     template<class... Args>
     void emplace_back(Args&&... args) noexcept {
         if (mSize < N) {
-            mInPlace[mSize] = T(std::forward<Args>(args)...);
+            //getInPlace(mSize) = T(std::forward<Args>(args)...);
+            new (&getInPlace(mSize)) T(std::forward<Args>(args)...);
         } else {
             if (!mOutOfPlace) {
                 mOutOfPlace = std::make_unique<std::vector<T>>();
@@ -56,7 +71,8 @@ public:
         if (mSize > 0) {
             --mSize;
             if (mSize < N) {
-                mInPlace[mSize] = T();
+                // call destructor here
+                getInPlace(mSize).~T();
             } else {
                 mOutOfPlace->pop_back();
             }
@@ -70,13 +86,12 @@ public:
         }
 
         if (index < N) {
-            for (size_t i = index; i < N - 1; ++i) {
-                mInPlace[i] = std::move(mInPlace[i + 1]);
+            getInPlace(index).~T();
+            for (size_t i = index; i < std::min(N - 1, mSize-1); ++i) {
+                getInPlace(i) = std::move(getInPlace(i+1));
             }
-            if (mSize <= N) {
-                mInPlace[mSize - 1] = T();
-            } else {
-                mInPlace[N - 1] = std::move((*mOutOfPlace)[0]);
+            if (mSize > N) {
+                getInPlace(N-1) = std::move((*mOutOfPlace)[0]);
                 mOutOfPlace->erase(mOutOfPlace->begin());
             }
         } else {
@@ -89,7 +104,7 @@ public:
     ///@return the element at the given @p mIndex.
     T& operator[](const size_t index) noexcept {
         if (index < N) {
-            return mInPlace[index];
+            return getInPlace(index);
         } else {
             return (*mOutOfPlace)[index - N];
         }
@@ -98,7 +113,7 @@ public:
     ///@return the element at the given @p mIndex
     const T& operator[](const size_t index) const noexcept {
         if (index < N) {
-            return mInPlace[index];
+            return getInPlace(index);
         } else {
             return (*mOutOfPlace)[index - N];
         }
@@ -113,7 +128,7 @@ public:
             throw std::out_of_range("Index out of range");
         }
         if (index < N) {
-            return mInPlace[index];
+            return getInPlace(index);
         } else {
             return mOutOfPlace->at(index - N);
         }
@@ -128,7 +143,7 @@ public:
             throw std::out_of_range("Index out of range");
         }
         if (index < N) {
-            return mInPlace[index];
+            return getInPlace(index);
         } else {
             return mOutOfPlace->at(index - N);
         }
