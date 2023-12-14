@@ -11,7 +11,7 @@
 /// Useful for small containers where the size has an upper bound most of the time.
 template <class T, size_t N = 5>
 class FastStorage {
-    alignas(T) char mInPlace[sizeof(T)*N]{};
+    alignas(T) char mInPlace[sizeof(T)*N];
     std::unique_ptr<std::vector<T>> mOutOfPlace = nullptr; ///< out of place memory stored as vector
 
     size_t mSize = 0;

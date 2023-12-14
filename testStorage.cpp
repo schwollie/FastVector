@@ -307,10 +307,23 @@ TEST(StorageTest, VeryLargeContainer) {
     }
 }
 
+TEST(StorageTest, InPlaceSize) {
+    class BigMyType {
+        int mValue;
+        char mBigArray[1000];
+    };
+
+    FastStorage<BigMyType, 100> a;
+    EXPECT_GT( sizeof (a), 100*sizeof (BigMyType));
+    EXPECT_LT( sizeof (a), 101*sizeof (BigMyType));
+
+    auto& b = a[0];
+}
+
 TEST(StorageTest, TestSpeed) {
 
-    int num_runs = 100000;
-    int frequency = 3;
+    int num_runs = 1000000;
+    int frequency = 9;
 
     auto start_faststorage = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_runs; ++i) {
