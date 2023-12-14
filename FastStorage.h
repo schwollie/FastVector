@@ -38,7 +38,7 @@ class FastStorage {
 public:
     FastStorage() = default;
 
-    FastStorage(const FastStorage<T, N>& other) {
+    FastStorage(const FastStorage& other) {
         if (this == &other) {
             return;
         }
@@ -51,15 +51,19 @@ public:
         }
     }
 
-    FastStorage &operator=(const FastStorage<T, N>& other) {
+    FastStorage &operator=(const FastStorage& other) {
         if (this == &other) {
             return *this;
         }
 
         clear();
-        mSize = other.mSize;
-        mInPlace = other.mInPlace;
-        mOutOfPlace = other.mOutOfPlace;
+        this->mSize = other.mSize;
+        for (size_t i = 0; i < std::min(N, mSize); ++i) {
+            new(&getInPlace(i)) T(other.getInPlace(i));
+        }
+        if (other.mOutOfPlace) {
+            this->mOutOfPlace.reset(new std::vector<T>(*other.mOutOfPlace));
+        }
         return *this;
     }
 

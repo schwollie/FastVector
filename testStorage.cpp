@@ -397,10 +397,34 @@ TEST(StorageTest, TestConstIt) {
     };
 
     const FastStorage<std::pair<BigMyType, int>, 100> a{std::make_pair(BigMyType(), 1)};
+    // test if it compiles
     for (const auto& i : a) {
         EXPECT_EQ(i.second, 1);
     }
 
+}
+
+TEST(StorageTest, TestCopyConstructor) {
+    class MyInt {
+        int mValue;
+    public:
+        MyInt(int value) : mValue(value) {}
+        bool operator==(const MyInt& other) const {
+            return mValue == other.mValue;
+        }
+    };
+
+    const FastStorage<MyInt, 2> a{1, 2, 3, 4};
+    FastStorage<MyInt, 2> b = a;
+    b[0] = 1;
+    b[1] = 1;
+    b[2] = 1;
+    b[3] = 1;
+
+    EXPECT_EQ(a[0], 1);
+    EXPECT_EQ(a[1], 2);
+    EXPECT_EQ(a[2], 3);
+    EXPECT_EQ(a[3], 4);
 }
 
 TEST(StorageTest, TestSpeed) {
