@@ -191,6 +191,50 @@ TEST(StorageTest, TestDestructorCalls) {
         EXPECT_EQ(num_destructor_calls.size(), 4);
     }
 
+    {
+        std::vector<int> num_destructor_calls;
+
+        FastStorage<TestDestructorCalls, 2> a;
+        a.emplace_back(&num_destructor_calls, 1);
+        a.emplace_back(&num_destructor_calls, 2);
+        a.emplace_back(&num_destructor_calls, 3);
+        a.clear();
+
+        EXPECT_EQ(num_destructor_calls[0], 3);
+        EXPECT_EQ(num_destructor_calls[1], 2);
+        EXPECT_EQ(num_destructor_calls[2], 1);
+        EXPECT_EQ(num_destructor_calls.size(), 3);
+    }
+
+    {
+        std::vector<int> num_destructor_calls;
+
+        FastStorage<TestDestructorCalls, 5> a;
+        a.emplace_back(&num_destructor_calls, 1);
+        a.emplace_back(&num_destructor_calls, 2);
+        a.emplace_back(&num_destructor_calls, 3);
+        a.clear();
+
+        EXPECT_EQ(num_destructor_calls[0], 3);
+        EXPECT_EQ(num_destructor_calls[1], 2);
+        EXPECT_EQ(num_destructor_calls[2], 1);
+        EXPECT_EQ(num_destructor_calls.size(), 3);
+    }
+
+    {
+        std::vector<int> num_destructor_calls;
+
+        FastStorage<TestDestructorCalls, 0> a;
+        a.emplace_back(&num_destructor_calls, 1);
+        a.emplace_back(&num_destructor_calls, 2);
+        a.emplace_back(&num_destructor_calls, 3);
+        a.clear();
+
+        // 6 because vector
+        EXPECT_EQ(num_destructor_calls.size(), 6);
+        EXPECT_EQ(a.size(), 0);
+    }
+
 }
 
 TEST(StorageTest, TestIterator) {
