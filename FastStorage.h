@@ -38,9 +38,35 @@ class FastStorage {
 public:
     FastStorage() = default;
 
-    FastStorage(const FastStorage &other) = delete;
+    FastStorage(const FastStorage<T, N>& other) {
+        if (this == &other) {
+            return;
+        }
+        if (other.mOutOfPlace) {
+            this->mOutOfPlace.reset(new std::vector<T>(*other.mOutOfPlace));
+        }
+        this->mSize = other.mSize;
+        for (size_t i = 0; i < std::min(N, mSize); ++i) {
+            new(&getInPlace(i)) T(other.getInPlace(i));
+        }
+    }
 
-    FastStorage &operator=(const FastStorage &other) = delete;
+    FastStorage &operator=(const FastStorage<T, N>& other) {
+        if (this == &other) {
+            return *this;
+        }
+
+        clear();
+        mSize = other.mSize;
+        mInPlace = other.mInPlace;
+        mOutOfPlace = other.mOutOfPlace;
+        return *this;
+    }
+
+    ~FastStorage() {
+        clear();
+        mOutOfPlace.reset();
+    }
 
     FastStorage(std::initializer_list<T> list) {
         for (auto &&i: list) {
@@ -56,7 +82,7 @@ public:
 
         size_t numElements = std::min(N, mSize);
         for (size_t i = 0; i < numElements; ++i) {
-            pop_back();
+            getInPlace(i).~T();
         }
 
         mSize = 0;

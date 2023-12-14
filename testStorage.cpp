@@ -201,8 +201,8 @@ TEST(StorageTest, TestDestructorCalls) {
         a.clear();
 
         EXPECT_EQ(num_destructor_calls[0], 3);
-        EXPECT_EQ(num_destructor_calls[1], 2);
-        EXPECT_EQ(num_destructor_calls[2], 1);
+        EXPECT_EQ(num_destructor_calls[1], 1);
+        EXPECT_EQ(num_destructor_calls[2], 2);
         EXPECT_EQ(num_destructor_calls.size(), 3);
     }
 
@@ -215,9 +215,9 @@ TEST(StorageTest, TestDestructorCalls) {
         a.emplace_back(&num_destructor_calls, 3);
         a.clear();
 
-        EXPECT_EQ(num_destructor_calls[0], 3);
+        EXPECT_EQ(num_destructor_calls[0], 1);
         EXPECT_EQ(num_destructor_calls[1], 2);
-        EXPECT_EQ(num_destructor_calls[2], 1);
+        EXPECT_EQ(num_destructor_calls[2], 3);
         EXPECT_EQ(num_destructor_calls.size(), 3);
     }
 
@@ -235,6 +235,32 @@ TEST(StorageTest, TestDestructorCalls) {
         EXPECT_EQ(a.size(), 0);
     }
 
+}
+
+TEST(StorageTest, TestFastVectorDestructor) {
+    class TestDestructorCalls {
+        std::vector<int>* mNumDestructorCalls;
+        int mIdentifier = 0;
+    public:
+        TestDestructorCalls(std::vector<int>* num_destructor_calls, int identifier) : mNumDestructorCalls(num_destructor_calls), mIdentifier(identifier) {}
+        ~TestDestructorCalls() {
+            mNumDestructorCalls->push_back(mIdentifier);
+        }
+    };
+
+    {
+        std::vector<int> num_destructor_calls;
+
+        {
+            FastStorage<TestDestructorCalls, 2> a;
+            a.emplace_back(&num_destructor_calls, 1);
+            a.emplace_back(&num_destructor_calls, 2);
+            a.emplace_back(&num_destructor_calls, 3);
+        }
+
+        EXPECT_EQ(num_destructor_calls.size(), 3);
+
+    }
 }
 
 TEST(StorageTest, TestIterator) {
@@ -367,7 +393,7 @@ TEST(StorageTest, InPlaceSize) {
 TEST(StorageTest, TestSpeed) {
 
     int num_runs = 1000000;
-    int frequency = 9;
+    int frequency = 4;
 
     auto start_faststorage = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_runs; ++i) {
