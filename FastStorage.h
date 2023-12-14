@@ -7,11 +7,12 @@
 #include <iterator>
 #include <cstring>
 
-///@brief FastStorage is a container that stores the first N elements in place and the rest in a linked list
+///@brief FastStorage is a container that stores the first N elements in place and the rest in a std::vector.
+/// Useful for small containers where the size has an upper bound most of the time.
 template <class T, size_t N = 5>
 class FastStorage {
-    alignas(T) char mInPlace[sizeof(T)*N];
-    std::unique_ptr<std::vector<T>> mOutOfPlace = nullptr; ///< out of place memory stored as linked list
+    alignas(T) char mInPlace[sizeof(T)*N]{};
+    std::unique_ptr<std::vector<T>> mOutOfPlace = nullptr; ///< out of place memory stored as vector
 
     size_t mSize = 0;
 
@@ -27,6 +28,13 @@ class FastStorage {
         reinterpret_cast<T*>(mInPlace)[index] = std::move(value);
     }
 
+    void createOutOfPlace() {
+        if (!mOutOfPlace) {
+            mOutOfPlace = std::make_unique<std::vector<T>>();
+            mOutOfPlace->reserve(N);
+        }
+    }
+
 public:
     FastStorage() = default;
     FastStorage(const FastStorage& other) = delete;
@@ -39,13 +47,11 @@ public:
     }
 
     ///@brief adds an element to the end of the storage
-    void push_back(const T&& value) noexcept {
+    void push_back(const T& value) noexcept {
         if (mSize < N) {
-            getInPlace(mSize) = std::move(value);
+            getInPlace(mSize) = value;
         } else {
-            if (!mOutOfPlace) {
-                mOutOfPlace = std::make_unique<std::vector<T>>();
-            }
+            createOutOfPlace();
             mOutOfPlace->push_back(value);
         }
         ++mSize;
@@ -55,12 +61,9 @@ public:
     template<class... Args>
     void emplace_back(Args&&... args) noexcept {
         if (mSize < N) {
-            //getInPlace(mSize) = T(std::forward<Args>(args)...);
             new (&getInPlace(mSize)) T(std::forward<Args>(args)...);
         } else {
-            if (!mOutOfPlace) {
-                mOutOfPlace = std::make_unique<std::vector<T>>();
-            }
+            createOutOfPlace();
             mOutOfPlace->emplace_back(std::forward<Args>(args)...);
         }
         ++mSize;

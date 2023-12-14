@@ -294,6 +294,19 @@ TEST(StorageTest, NoDefaultConstructor) {
     FastStorage<NoDefaultConstructor, 2> a{2, 4, 1, 3, 4};
 }
 
+TEST(StorageTest, VeryLargeContainer) {
+    {
+        FastStorage<int, 500000> a;
+        for (int i = 0; i < 100000; ++i) {
+            a.push_back(i);
+        }
+        EXPECT_EQ(a.size(), 100000);
+        for (int i = 0; i < 100000; ++i) {
+            EXPECT_EQ(a[i], i);
+        }
+    }
+}
+
 TEST(StorageTest, TestSpeed) {
 
     int num_runs = 100000;
