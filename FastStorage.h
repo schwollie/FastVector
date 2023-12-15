@@ -6,51 +6,43 @@
 #include <stdexcept>
 #include <iterator>
 #include <cstring>
+#include <new>
+#include <vector>
 
-///@brief FastStorage is a container that stores the first N elements in place and the rest in a std::vector.
-/// Useful for small containers where the size has an upper bound most of the time.
+///@brief FastStorage is a container that stores the first N elements in a uninitialized array (in place) and additional elements
+/// in a std::vector. This is useful for small containers where the size has an upper bound most of the time.
+/// Note that N should stay small to avoid large amounts of data on the stack.
 template<class T, size_t N = 5>
 class FastStorage {
-    alignas(T) char mInPlace[sizeof(T) * N];
-    std::unique_ptr<std::vector<T>> mOutOfPlace = nullptr; ///< out of place memory stored as vector
-
-    size_t mSize = 0;
+    std::aligned_storage_t<sizeof(T), alignof(T)> mInPlace[N]; ///< in place memory as a uninitialized array
+    std::vector<T> mOutOfPlace; ///< out of place memory stored as vector TODO
+    size_t mSize = 0; ///< the current number of elements in the container
 
     T &getInPlace(size_t index) noexcept {
-        return reinterpret_cast<T *>(mInPlace)[index];
+        return *reinterpret_cast<T*>(&mInPlace[index]);
     }
 
     const T &getInPlace(size_t index) const noexcept {
-        return reinterpret_cast<const T *>(mInPlace)[index];
-    }
-
-    void setInPlace(size_t index, T &&value) noexcept {
-        reinterpret_cast<T *>(mInPlace)[index] = std::move(value);
-    }
-
-    void createOutOfPlace() {
-        if (!mOutOfPlace) {
-            mOutOfPlace = std::make_unique<std::vector<T>>();
-            mOutOfPlace->reserve(N);
-        }
+        return *reinterpret_cast<const T*>(&mInPlace[index]);
     }
 
 public:
     FastStorage() = default;
 
+    // copy ctr
     FastStorage(const FastStorage& other) {
         if (this == &other) {
             return;
         }
-        if (other.mOutOfPlace) {
-            this->mOutOfPlace.reset(new std::vector<T>(*other.mOutOfPlace));
-        }
+        this->mOutOfPlace = other.mOutOfPlace;
         this->mSize = other.mSize;
+
         for (size_t i = 0; i < std::min(N, mSize); ++i) {
             new(&getInPlace(i)) T(other.getInPlace(i));
         }
     }
 
+    // copy assign operator
     FastStorage &operator=(const FastStorage& other) {
         if (this == &other) {
             return *this;
@@ -61,15 +53,12 @@ public:
         for (size_t i = 0; i < std::min(N, mSize); ++i) {
             new(&getInPlace(i)) T(other.getInPlace(i));
         }
-        if (other.mOutOfPlace) {
-            this->mOutOfPlace.reset(new std::vector<T>(*other.mOutOfPlace));
-        }
+        this->mOutOfPlace = other.mOutOfPlace;
         return *this;
     }
 
     ~FastStorage() {
         clear();
-        mOutOfPlace.reset();
     }
 
     FastStorage(std::initializer_list<T> list) {
@@ -79,38 +68,37 @@ public:
     }
 
     void clear() {
-        if (mOutOfPlace) {
-            mOutOfPlace->clear();
-            mSize = std::min(N, mSize);
-        }
-
-        size_t numElements = std::min(N, mSize);
-        for (size_t i = 0; i < numElements; ++i) {
+        mOutOfPlace.clear();
+        mSize = std::min(N, mSize);
+        for (size_t i = 0; i < mSize; ++i) {
             getInPlace(i).~T();
         }
-
         mSize = 0;
     }
 
     ///@brief adds an element to the end of the storage
     void push_back(const T &value) noexcept {
         if (mSize < N) {
-            getInPlace(mSize) = value;
+            ::new(&mInPlace[mSize]) T(value);
+        } else if (mSize == N) {
+            mOutOfPlace.reserve(N); // reserve N elements because N elements are already in use
+            mOutOfPlace.push_back(value);
         } else {
-            createOutOfPlace();
-            mOutOfPlace->push_back(value);
+            mOutOfPlace.push_back(value);
         }
         ++mSize;
     }
 
     ///@brief creates and adds an element to the end of the storage
-    template<class... Args>
-    void emplace_back(Args &&... args) noexcept {
+    template<typename ...Args> void emplace_back(Args&&... args)
+    {
         if (mSize < N) {
-            new(&getInPlace(mSize)) T(std::forward<Args>(args)...);
+            ::new(&mInPlace[mSize]) T(std::forward<Args>(args)...);
+        } else if (mSize == N) {
+            mOutOfPlace.reserve(N); // reserve N elements because N elements are already in use
+            mOutOfPlace.emplace_back(std::forward<Args>(args)...);
         } else {
-            createOutOfPlace();
-            mOutOfPlace->emplace_back(std::forward<Args>(args)...);
+            mOutOfPlace.emplace_back(std::forward<Args>(args)...);
         }
         ++mSize;
     }
@@ -123,7 +111,7 @@ public:
                 // call destructor here
                 getInPlace(mSize).~T();
             } else {
-                mOutOfPlace->pop_back();
+                mOutOfPlace.pop_back();
             }
         }
     }
@@ -140,11 +128,11 @@ public:
                 getInPlace(i) = std::move(getInPlace(i + 1));
             }
             if (mSize > N) {
-                getInPlace(N - 1) = std::move((*mOutOfPlace)[0]);
-                mOutOfPlace->erase(mOutOfPlace->begin());
+                getInPlace(N - 1) = std::move(mOutOfPlace[0]);
+                mOutOfPlace.erase(mOutOfPlace.begin());
             }
         } else {
-            mOutOfPlace->erase(std::next(mOutOfPlace->begin(), index - N));
+            mOutOfPlace.erase(std::next(mOutOfPlace.begin(), index - N));
         }
         --mSize;
         return true;
@@ -155,7 +143,7 @@ public:
         if (index < N) {
             return getInPlace(index);
         }
-        return (*mOutOfPlace)[index - N];
+        return mOutOfPlace[index - N];
 
     }
 
@@ -164,7 +152,7 @@ public:
         if (index < N) {
             return getInPlace(index);
         }
-        return (*mOutOfPlace)[index - N];
+        return mOutOfPlace[index - N];
 
     }
 
@@ -179,7 +167,7 @@ public:
         if (index < N) {
             return getInPlace(index);
         }
-        return mOutOfPlace->at(index - N);
+        return mOutOfPlace.at(index - N);
 
     }
 
@@ -194,7 +182,7 @@ public:
         if (index < N) {
             return getInPlace(index);
         }
-        return mOutOfPlace->at(index - N);
+        return mOutOfPlace.at(index - N);
 
     }
 
@@ -233,7 +221,7 @@ public:
         iterator(const iterator &other) : mIndex(other.mIndex), mStorage(other.mStorage) {}
 
         iterator &operator=(const iterator &other) {
-            if (other == *this) {
+            if (this == &other) {
                 return *this;
             }
             mIndex = other.mIndex;

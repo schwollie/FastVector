@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <chrono>
+#include <random>
 #include "FastStorage.h"
 
 int main(int argc, char** argv) {
@@ -366,7 +367,7 @@ TEST(StorageTest, NoDefaultConstructor) {
 
 TEST(StorageTest, VeryLargeContainer) {
     {
-        FastStorage<int, 500000> a;
+        FastStorage<int, 500> a;
         for (int i = 0; i < 100000; ++i) {
             a.push_back(i);
         }
@@ -425,6 +426,28 @@ TEST(StorageTest, TestCopyConstructor) {
     EXPECT_EQ(a[1], 2);
     EXPECT_EQ(a[2], 3);
     EXPECT_EQ(a[3], 4);
+}
+
+TEST(StorageTest, RandomAccess) {
+    for (size_t size = 0; size < 1000; size++) {
+        FastStorage<int, 500> a;
+        for (size_t i = 0; i < size; ++i) {
+            a.push_back(i);
+        }
+        for (size_t i = 0; i < size; ++i) {
+            EXPECT_EQ(a[i], i);
+        }
+    }
+
+    for (size_t size = 1000; size > 0; size--) {
+        FastStorage<int, 500> a;
+        for (size_t i = 0; i < size; ++i) {
+            a.push_back(i);
+        }
+        for (size_t i = 0; i < size; ++i) {
+            EXPECT_EQ(a[i], i);
+        }
+    }
 }
 
 TEST(StorageTest, TestSpeed) {
