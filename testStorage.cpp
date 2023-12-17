@@ -9,6 +9,18 @@ int main(int argc, char** argv) {
     return RUN_ALL_TESTS();
 }
 
+TEST(StorageTest, InitializerList) {
+    FastStorage<int, 2> a{1, 2, 3, 4};
+    a.emplace_back(9);
+
+    EXPECT_EQ(a.size(), 5);
+    EXPECT_EQ(a[0], 1);
+    EXPECT_EQ(a[1], 2);
+    EXPECT_EQ(a[2], 3);
+    EXPECT_EQ(a[3], 4);
+    EXPECT_EQ(a[4], 9);
+}
+
 TEST(StorageTest, AllInPlace) {
     FastStorage<int, 3> a;
     EXPECT_EQ(a.size(), 0);
@@ -453,13 +465,14 @@ TEST(StorageTest, RandomAccess) {
 TEST(StorageTest, TestSpeed) {
 
     int num_runs = 1000000;
-    int frequency = 4;
+    int frequency = 8;
 
     auto start_faststorage = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_runs; ++i) {
-        FastStorage<int, 4> a{1, 2, 3, 4};
-        if (i % frequency == 0)
+        FastStorage<int, 10> a{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        if (i % frequency == 0) {
             a.push_back(5);
+        }
     }
     auto end_faststorage = std::chrono::high_resolution_clock::now();
     auto duration_faststorage = std::chrono::duration_cast<std::chrono::milliseconds>(end_faststorage - start_faststorage);
@@ -468,9 +481,10 @@ TEST(StorageTest, TestSpeed) {
     // Timing for std::vector
     auto start_vector = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_runs; ++i) {
-        std::vector<int> a{1, 2, 3, 4};
-        if (i % frequency == 0)
+        std::vector<int> a{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        if (i % frequency == 0) {
             a.push_back(5);
+        }
     }
     auto end_vector = std::chrono::high_resolution_clock::now();
     auto duration_vector = std::chrono::duration_cast<std::chrono::milliseconds>(end_vector - start_vector);

@@ -15,7 +15,7 @@
 template<class T, size_t N = 5>
 class FastStorage {
     std::aligned_storage_t<sizeof(T), alignof(T)> mInPlace[N]; ///< in place memory as a uninitialized array
-    std::vector<T> mOutOfPlace; ///< out of place memory stored as vector TODO
+    std::unique_ptr<std::vector<T>> mOutOfPlace = nullptr; ///< out of place memory stored as vector
     size_t mSize = 0; ///< the current number of elements in the container
 
     T &getInPlace(size_t index) noexcept {
@@ -27,14 +27,16 @@ class FastStorage {
     }
 
 public:
-    FastStorage() = default;
+    FastStorage() noexcept = default;
 
     // copy ctr
-    FastStorage(const FastStorage& other) {
+    FastStorage(const FastStorage& other) noexcept {
         if (this == &other) {
             return;
         }
-        this->mOutOfPlace = other.mOutOfPlace;
+        if (other.mOutOfPlace) {
+            this->mOutOfPlace = std::make_unique<std::vector<T>>(*other.mOutOfPlace);
+        }
         this->mSize = other.mSize;
 
         for (size_t i = 0; i < std::min(N, mSize); ++i) {
@@ -43,7 +45,7 @@ public:
     }
 
     // copy assign operator
-    FastStorage &operator=(const FastStorage& other) {
+    FastStorage &operator=(const FastStorage& other) noexcept {
         if (this == &other) {
             return *this;
         }
@@ -53,22 +55,61 @@ public:
         for (size_t i = 0; i < std::min(N, mSize); ++i) {
             new(&getInPlace(i)) T(other.getInPlace(i));
         }
-        this->mOutOfPlace = other.mOutOfPlace;
+        if (other.mOutOfPlace) {
+            this->mOutOfPlace = std::make_unique<std::vector<T>>(*other.mOutOfPlace);
+        } else {
+            this->mOutOfPlace.release();
+        }
         return *this;
     }
 
+    // move ctr
+    FastStorage(FastStorage&& other) noexcept {
+        if (this == &other) {
+            return;
+        }
+        if (other.mOutOfPlace) {
+            this->mOutOfPlace = std::move(other.mOutOfPlace);
+        }
+        this->mSize = other.mSize;
+        this->mInPlace = other.mInPlace;
+    }
+
+    // move assign operator
+    FastStorage &operator=(FastStorage&& other) noexcept {
+        if (this == &other) {
+            return *this;
+        }
+        clear();
+        this->mSize = other.mSize;
+        this->mInPlace = other.mInPlace;
+        if (other.mOutOfPlace) {
+            this->mOutOfPlace = std::move(other.mOutOfPlace);
+        } else {
+            this->mOutOfPlace.release();
+        }
+        return *this;
+    }
+
+    // dtr
     ~FastStorage() {
         clear();
     }
 
-    FastStorage(std::initializer_list<T> list) {
-        for (auto &&i: list) {
-            push_back(std::move(i));
+    FastStorage(std::initializer_list<T> list) noexcept {
+        mSize = list.size();
+        for (int i = 0; i < N && i < list.size(); ++i) {
+            ::new(&mInPlace[i]) T(*(list.begin() + i));
+        }
+        if (list.size() > N) {
+            mOutOfPlace = std::make_unique<std::vector<T>>(list.begin() + N, list.end());
         }
     }
 
-    void clear() {
-        mOutOfPlace.clear();
+    void clear() noexcept {
+        if (mOutOfPlace) {
+            mOutOfPlace->clear();
+        }
         mSize = std::min(N, mSize);
         for (size_t i = 0; i < mSize; ++i) {
             getInPlace(i).~T();
@@ -81,24 +122,31 @@ public:
         if (mSize < N) {
             ::new(&mInPlace[mSize]) T(value);
         } else if (mSize == N) {
-            mOutOfPlace.reserve(N); // reserve N elements because N elements are already in use
-            mOutOfPlace.push_back(value);
+            if (!mOutOfPlace) {
+                mOutOfPlace = std::make_unique<std::vector<T>>();
+                mOutOfPlace->reserve(N);
+            }
+            mOutOfPlace->push_back(value);
         } else {
-            mOutOfPlace.push_back(value);
+            mOutOfPlace->push_back(value);
         }
         ++mSize;
     }
 
     ///@brief creates and adds an element to the end of the storage
-    template<typename ...Args> void emplace_back(Args&&... args)
+    template<typename ...Args> void emplace_back(Args&&... args) noexcept
     {
         if (mSize < N) {
             ::new(&mInPlace[mSize]) T(std::forward<Args>(args)...);
         } else if (mSize == N) {
-            mOutOfPlace.reserve(N); // reserve N elements because N elements are already in use
-            mOutOfPlace.emplace_back(std::forward<Args>(args)...);
+            if (!mOutOfPlace) {
+                // reserve N elements because N elements are already in use
+                mOutOfPlace = std::make_unique<std::vector<T>>();
+                mOutOfPlace->reserve(N);
+            }
+            mOutOfPlace->emplace_back(std::forward<Args>(args)...);
         } else {
-            mOutOfPlace.emplace_back(std::forward<Args>(args)...);
+            mOutOfPlace->emplace_back(std::forward<Args>(args)...);
         }
         ++mSize;
     }
@@ -111,7 +159,7 @@ public:
                 // call destructor here
                 getInPlace(mSize).~T();
             } else {
-                mOutOfPlace.pop_back();
+                mOutOfPlace->pop_back();
             }
         }
     }
@@ -128,11 +176,11 @@ public:
                 getInPlace(i) = std::move(getInPlace(i + 1));
             }
             if (mSize > N) {
-                getInPlace(N - 1) = std::move(mOutOfPlace[0]);
-                mOutOfPlace.erase(mOutOfPlace.begin());
+                getInPlace(N - 1) = std::move(mOutOfPlace->operator[](0));
+                mOutOfPlace->erase(mOutOfPlace->begin());
             }
         } else {
-            mOutOfPlace.erase(std::next(mOutOfPlace.begin(), index - N));
+            mOutOfPlace->erase(std::next(mOutOfPlace->begin(), index - N));
         }
         --mSize;
         return true;
@@ -143,7 +191,7 @@ public:
         if (index < N) {
             return getInPlace(index);
         }
-        return mOutOfPlace[index - N];
+        return mOutOfPlace->operator[](index - N);
 
     }
 
@@ -152,7 +200,7 @@ public:
         if (index < N) {
             return getInPlace(index);
         }
-        return mOutOfPlace[index - N];
+        return mOutOfPlace->operator[](index - N);
 
     }
 
@@ -167,7 +215,7 @@ public:
         if (index < N) {
             return getInPlace(index);
         }
-        return mOutOfPlace.at(index - N);
+        return mOutOfPlace->at(index - N);
 
     }
 
@@ -182,7 +230,7 @@ public:
         if (index < N) {
             return getInPlace(index);
         }
-        return mOutOfPlace.at(index - N);
+        return mOutOfPlace->at(index - N);
 
     }
 
