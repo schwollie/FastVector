@@ -302,8 +302,8 @@ TEST(StorageTest, TestIterator) {
         // test erase during iteration
         FastStorage<int, 2> a{2, 4, 1, 3};
 
-        for (auto i = a.begin(); i != a.end(); ++i) {
-            i = a.erase(i);
+        for (auto i = a.begin(); i != a.end();) {
+            i = a.erase(i); // no need to increment i, erase returns the next iterator
         }
         EXPECT_EQ(a.size(), 0);
     }
@@ -465,7 +465,7 @@ TEST(StorageTest, RandomAccess) {
 TEST(StorageTest, TestSpeed) {
 
     int num_runs = 1000000;
-    int frequency = 8;
+    int frequency = 15;
 
     auto start_faststorage = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_runs; ++i) {

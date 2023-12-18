@@ -72,7 +72,8 @@ public:
             this->mOutOfPlace = std::move(other.mOutOfPlace);
         }
         this->mSize = other.mSize;
-        this->mInPlace = other.mInPlace;
+        std::memcpy(this->mInPlace, other.mInPlace, sizeof(T) * N);
+        //this->mInPlace = other.mInPlace;
     }
 
     // move assign operator
@@ -81,7 +82,8 @@ public:
             return *this;
         }
         clear();
-        this->mSize = other.mSize;
+        //this->mSize = other.mSize;
+        std::memcpy(this->mInPlace, other.mInPlace, sizeof(T) * N);
         this->mInPlace = other.mInPlace;
         if (other.mOutOfPlace) {
             this->mOutOfPlace = std::move(other.mOutOfPlace);
@@ -259,7 +261,7 @@ public:
 
         iterator erase() {
             if (mStorage->erase(mIndex)) {
-                return iterator(--mIndex, mStorage);
+                return iterator(mIndex, mStorage);
             }
 
             return iterator(mIndex, mStorage);
