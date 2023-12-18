@@ -82,9 +82,9 @@ public:
             return *this;
         }
         clear();
-        //this->mSize = other.mSize;
+        this->mSize = other.mSize;
         std::memcpy(this->mInPlace, other.mInPlace, sizeof(T) * N);
-        this->mInPlace = other.mInPlace;
+        //this->mInPlace = other.mInPlace;
         if (other.mOutOfPlace) {
             this->mOutOfPlace = std::move(other.mOutOfPlace);
         } else {
