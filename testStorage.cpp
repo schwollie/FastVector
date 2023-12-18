@@ -464,12 +464,12 @@ TEST(StorageTest, RandomAccess) {
 
 TEST(StorageTest, TestSpeed) {
 
-    int num_runs = 1000000;
-    int frequency = 15;
+    int num_runs = 500000;
+    int frequency = 8;
 
     auto start_faststorage = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_runs; ++i) {
-        FastStorage<int, 10> a{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        FastStorage<int, 8> a{1, 2, 3, 4, 5, 6, 7, 8};
         if (i % frequency == 0) {
             a.push_back(5);
         }
@@ -481,7 +481,7 @@ TEST(StorageTest, TestSpeed) {
     // Timing for std::vector
     auto start_vector = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < num_runs; ++i) {
-        std::vector<int> a{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        std::vector<int> a{1, 2, 3, 4, 5, 6 ,7 ,8};
         if (i % frequency == 0) {
             a.push_back(5);
         }
